@@ -318,7 +318,7 @@ export default function Studio() {
         warn: (...args: any[]) => logs.push('Warn: ' + args.map(String).join(' ')),
         info: (...args: any[]) => logs.push(args.map(String).join(' ')),
       };
-      w.eval(code);
+      (w as any).eval(code);
       setConsoleOutput(prev => [...prev, ...(logs.length ? logs : ['✓ Ejecutado (sin salida)'])]);
     } catch (err: any) {
       setConsoleOutput(prev => [...prev, `✗ ${err.message || String(err)}`]);
