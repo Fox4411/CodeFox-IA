@@ -369,16 +369,17 @@ export default function Studio() {
     iframe.style.display = 'none';
     document.body.appendChild(iframe);
     try {
-      const w = iframe.contentWindow;
+      const w = iframe.contentWindow as Window | null;
       if (!w) throw new Error('No se pudo crear el entorno');
       const logs: string[] = [];
-      (w as any).console = {
+      const win = w as any;
+      win.console = {
         log: (...args: any[]) => logs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a, null, 2) : String(a)).join(' ')),
         error: (...args: any[]) => logs.push('Error: ' + args.map(String).join(' ')),
         warn: (...args: any[]) => logs.push('Warn: ' + args.map(String).join(' ')),
         info: (...args: any[]) => logs.push(args.map(String).join(' ')),
       };
-      w.eval(code);
+      win.eval(code);
       setConsoleOutput(prev => [...prev, ...(logs.length ? logs : ['✓ Ejecutado (sin salida)'])]);
     } catch (err: any) {
       setConsoleOutput(prev => [...prev, `✗ ${err.message || String(err)}`]);
