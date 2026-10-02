@@ -8,11 +8,16 @@ import remarkGfm from 'remark-gfm';
 import {
   Bot, Send, Loader2, Trash2, Play, FileCode, Plus, Sparkles,
   Check, Copy, ArrowRight, Target, ListChecks, Download, LayoutTemplate,
-  FilePlus2
+  FilePlus2, Flame, Trophy, Zap
 } from 'lucide-react';
 import { AIMode, MODES, ProjectFile, TEMPLATES } from '@/lib/types';
 import { useAuth } from '@/components/AuthProvider';
+import Onboarding from '@/components/Onboarding';
 import { cn } from '@/lib/utils';
+import {
+  UserProgress, defaultProgress, applyDailyStreak, addXp, getRank, progressToNext,
+  XP, ACHIEVEMENTS
+} from '@/lib/progress';
 import { v4 as uuid } from 'uuid';
 
 function cleanCode(code: string) {
@@ -119,6 +124,9 @@ export default function Studio() {
   const [mode, setMode] = useState<AIMode>('plan');
   const [projectName, setProjectName] = useState('Nuevo proyecto');
   const [projectGoal, setProjectGoal] = useState('');
+  const [progress, setProgress] = useState<UserProgress>(defaultProgress());
+  const [xpFlash, setXpFlash] = useState<string | null>(null);
+  const [achievementFlash, setAchievementFlash] = useState<string | null>(null);
   const [files, setFiles] = useState<ProjectFile[]>([
     { id: '1', name: 'main.js', language: 'javascript', content: '// Escribe el objetivo del proyecto y pide a CodeFox que genere la estructura.\nconsole.log("CodeFox listo");\n' }
   ]);
@@ -137,6 +145,33 @@ export default function Studio() {
   const showToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 2200);
+  };
+
+  const progressKey = user?.id ? `codefox-progress-${user.id}` : 'codefox-progress-v1';
+
+  const unlockAchievement = (id: string, p: UserProgress) => {
+    if (p.achievements.includes(id)) return p;
+    const meta = ACHIEVEMENTS[id];
+    if (meta) {
+      setAchievementFlash(meta.title);
+      setTimeout(() => setAchievementFlash(null), 2800);
+    }
+    return { ...p, achievements: [...p.achievements, id] };
+  };
+
+  const gainXp = (amount: number, label: string, extra?: (p: UserProgress) => UserProgress) => {
+    setProgress(prev => {
+      let next = addXp(prev, amount);
+      if (extra) next = extra(next);
+      const rankBefore = getRank(prev.xp).id;
+      const rankAfter = getRank(next.xp).id;
+      if (rankBefore !== rankAfter && rankAfter === 'builder') {
+        next = unlockAchievement('level_builder', next);
+      }
+      return next;
+    });
+    setXpFlash(`+${amount} XP · ${label}`);
+    setTimeout(() => setXpFlash(null), 2200);
   };
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages, append } = useChat({
@@ -170,6 +205,24 @@ export default function Studio() {
       } catch {}
     }
   }, [setMessages, user?.id]);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(progressKey);
+      if (raw) {
+        const parsed = JSON.parse(raw) as UserProgress;
+        setProgress(applyDailyStreak({ ...defaultProgress(), ...parsed }));
+      } else {
+        setProgress(applyDailyStreak(defaultProgress()));
+      }
+    } catch {
+      setProgress(applyDailyStreak(defaultProgress()));
+    }
+  }, [progressKey]);
+
+  useEffect(() => {
+    localStorage.setItem(progressKey, JSON.stringify(progress));
+  }, [progress, progressKey]);
+
 
   useEffect(() => {
     const storageKey = user?.id ? `codefox-pro-${user.id}` : 'codefox-pro-v2';
@@ -193,6 +246,7 @@ export default function Studio() {
   const applyCode = useCallback((code: string) => {
     updateFileContent(cleanCode(code));
     showToast('Código aplicado al archivo actual');
+    gainXp(XP.applyCode, 'Código aplicado');
   }, [updateFileContent]);
 
   const createFileFromCode = useCallback((name: string, code: string) => {
@@ -216,6 +270,11 @@ export default function Studio() {
       return prev;
     });
     showToast(`Archivo ${name} listo`);
+    gainXp(XP.createFile, 'Archivo creado', (p) => {
+      let n = { ...p, totalFilesCreated: p.totalFilesCreated + 1 };
+      if (n.totalFilesCreated === 1) n = unlockAchievement('first_file', n);
+      return n;
+    });
   }, []);
 
   const addFile = () => {
@@ -285,6 +344,7 @@ export default function Studio() {
       }
       setHtmlPreview(html);
       setConsoleOutput(prev => [...prev, '› Preview HTML abierto']);
+      gainXp(XP.runPreview, 'Preview');
       return;
     }
 
@@ -318,7 +378,7 @@ export default function Studio() {
         warn: (...args: any[]) => logs.push('Warn: ' + args.map(String).join(' ')),
         info: (...args: any[]) => logs.push(args.map(String).join(' ')),
       };
-      (w as any).eval(code);
+      w.eval(code);
       setConsoleOutput(prev => [...prev, ...(logs.length ? logs : ['✓ Ejecutado (sin salida)'])]);
     } catch (err: any) {
       setConsoleOutput(prev => [...prev, `✗ ${err.message || String(err)}`]);
@@ -337,10 +397,22 @@ export default function Studio() {
     a.click();
     URL.revokeObjectURL(url);
     showToast('Proyecto exportado');
+    gainXp(XP.exportProject, 'Proyecto exportado', (p) => unlockAchievement('first_export', p));
   };
 
   const toggleCheck = (id: string) => {
-    setChecklist(prev => prev.map(c => c.id === id ? { ...c, done: !c.done } : c));
+    setChecklist(prev => {
+      const item = prev.find(c => c.id === id);
+      const turningOn = item && !item.done;
+      if (turningOn) {
+        gainXp(XP.completeCheckItem, 'Checklist', (p) => {
+          let n = { ...p, totalChecksDone: p.totalChecksDone + 1 };
+          if (n.totalChecksDone === 1) n = unlockAchievement('first_check', n);
+          return n;
+        });
+      }
+      return prev.map(c => c.id === id ? { ...c, done: !c.done } : c);
+    });
   };
 
   const addCheckItem = () => {
@@ -358,6 +430,16 @@ export default function Studio() {
           {toast}
         </div>
       )}
+      {xpFlash && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-violet-500 text-white text-xs font-semibold shadow-lg shadow-violet-500/30 flex items-center gap-1.5">
+          <Zap size={12} /> {xpFlash}
+        </div>
+      )}
+      {achievementFlash && (
+        <div className="fixed top-28 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-amber-500 text-black text-xs font-semibold shadow-lg flex items-center gap-1.5">
+          <Trophy size={12} /> Logro: {achievementFlash}
+        </div>
+      )}
 
       <header className="h-12 border-b border-zinc-800 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
@@ -365,8 +447,30 @@ export default function Studio() {
           <input
             value={projectName}
             onChange={(e) => setProjectName(e.target.value)}
-            className="bg-transparent outline-none text-sm font-medium max-w-[160px] truncate"
+            className="bg-transparent outline-none text-sm font-medium max-w-[140px] truncate"
           />
+          {(() => {
+            const rank = getRank(progress.xp);
+            const prog = progressToNext(progress.xp);
+            return (
+              <div className="hidden lg:flex items-center gap-2 min-w-[160px]">
+                <div className="flex flex-col gap-0.5 min-w-[120px]">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className={cn('font-semibold', rank.color)}>{rank.name}</span>
+                    <span className="text-zinc-500">{progress.xp} XP</span>
+                  </div>
+                  <div className="h-1 rounded-full bg-zinc-800 overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-blue-500 to-violet-500 transition-all duration-500" style={{ width: `${prog.pct}%` }} />
+                  </div>
+                </div>
+                {progress.streak > 0 && (
+                  <div className="flex items-center gap-1 text-[10px] text-orange-400 font-medium px-1.5 py-0.5 rounded-md bg-orange-500/10 border border-orange-500/20">
+                    <Flame size={11} /> {progress.streak}d
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           <div className="hidden md:flex items-center gap-1.5 text-zinc-500 text-xs">
             <Target size={12} />
             <input
@@ -437,6 +541,19 @@ export default function Studio() {
           </div>
 
           <div className="p-3 flex-1 overflow-y-auto">
+            <div className="mb-4 rounded-xl border border-zinc-800 bg-zinc-900/50 p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className={cn('text-xs font-semibold', getRank(progress.xp).color)}>{getRank(progress.xp).name}</span>
+                <span className="text-[10px] text-zinc-500">{progress.xp} XP</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden mb-2">
+                <div className="h-full bg-gradient-to-r from-blue-500 to-violet-500 transition-all" style={{ width: `${progressToNext(progress.xp).pct}%` }} />
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-zinc-500">
+                <span className="flex items-center gap-1"><Flame size={10} className="text-orange-400" /> Racha {progress.streak}d</span>
+                <span>{progress.achievements.length} logros</span>
+              </div>
+            </div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1">
                 <ListChecks size={12} /> Checklist
@@ -535,9 +652,13 @@ export default function Studio() {
                 <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4">
                   <Bot size={18} />
                 </div>
-                <h2 className="text-sm font-medium mb-1">Construye proyectos completos</h2>
+                <h2 className="text-sm font-medium mb-1">
+                  {progress.streak > 0 ? `Día ${progress.streak} · ¿Qué avanzamos hoy?` : 'Construye proyectos completos'}
+                </h2>
                 <p className="text-xs text-zinc-500 leading-relaxed mb-5">
-                  Pide estructura, archivos y código. Usa <strong className="text-zinc-300">Crear archivo</strong> en cada bloque para armar el proyecto.
+                  {projectGoal
+                    ? `Objetivo: ${projectGoal}`
+                    : 'Define un objetivo y usa Crear archivo en cada bloque para armar el proyecto.'}
                 </p>
                 <div className="space-y-1.5">
                   {[
@@ -668,6 +789,26 @@ export default function Studio() {
             sandbox="allow-scripts allow-forms allow-modals allow-same-origin"
           />
         </div>
+      )}
+
+      {!progress.onboardingDone && (
+        <Onboarding
+          onComplete={({ projectName: n, goal }) => {
+            setProjectName(n);
+            setProjectGoal(goal);
+            setProgress(prev => {
+              let p = addXp(prev, XP.finishOnboarding + XP.defineGoal + XP.createProject);
+              p = { ...p, onboardingDone: true, totalProjects: prev.totalProjects + 1 };
+              p = unlockAchievement('onboarding', p);
+              p = unlockAchievement('first_goal', p);
+              return p;
+            });
+            setXpFlash('+65 XP · Onboarding completado');
+            setTimeout(() => setXpFlash(null), 2500);
+            setMode('plan');
+            showToast('Objetivo definido. Ahora construye.');
+          }}
+        />
       )}
 
       {showTemplates && (
