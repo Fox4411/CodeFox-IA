@@ -1,11 +1,8 @@
-import type { CapacitorConfig } from '@capacitor/cli';
-
-const config: CapacitorConfig = {
+const config = {
   appId: 'com.codefox.app',
   appName: 'CodeFox',
   webDir: 'out',
   server: {
-    // App nativa carga tu web en producción (API + auth funcionan)
     url: 'https://code-fox-ia.vercel.app',
     cleartext: false,
   },
