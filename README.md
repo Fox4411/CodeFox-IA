@@ -2,31 +2,21 @@
 
 AI co-builder focused on finishing real projects.
 
-## New in this version
-
-- **Levels / ranks**: Novato → Builder → Shipper → Founder → Legend
-- **XP** for real actions (files, checklist, preview, export, onboarding)
-- **Daily streak**
-- **Achievements**
-- **Interactive onboarding**
+## Features
 - Login (Supabase)
+- Plan / Build / Review / Ship
 - Multi-file + HTML preview
+- Levels, XP, streaks, achievements
+- Onboarding
+- Mobile UI (ready for APK)
+- PWA manifest
 
-## Setup
-
+## Web
 ```bash
 npm install
 cp .env.example .env.local
-```
-
-```env
-OPENAI_API_KEY=gsk_...
-NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-```
-
-```bash
 npm run dev
 ```
 
-Deploy on Vercel with the same env vars, then Redeploy.
+## APK / IPA
+See **APK-IPA.md** for Android and iOS packaging with Capacitor.

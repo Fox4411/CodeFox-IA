@@ -8,7 +8,7 @@ import remarkGfm from 'remark-gfm';
 import {
   Bot, Send, Loader2, Trash2, Play, FileCode, Plus, Sparkles,
   Check, Copy, ArrowRight, Target, ListChecks, Download, LayoutTemplate,
-  FilePlus2, Flame, Trophy, Zap
+  FilePlus2, Flame, Trophy, Zap, MessageSquare, FolderOpen
 } from 'lucide-react';
 import { AIMode, MODES, ProjectFile, TEMPLATES } from '@/lib/types';
 import { useAuth } from '@/components/AuthProvider';
@@ -137,6 +137,7 @@ export default function Studio() {
   const [htmlPreview, setHtmlPreview] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mobileTab, setMobileTab] = useState<'files' | 'editor' | 'chat'>('editor');
 
   const activeFile = files.find(f => f.id === activeFileId) || files[0];
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -454,7 +455,7 @@ export default function Studio() {
             const rank = getRank(progress.xp);
             const prog = progressToNext(progress.xp);
             return (
-              <div className="hidden lg:flex items-center gap-2 min-w-[160px]">
+              <div className="hidden sm:flex items-center gap-2 min-w-[120px]">
                 <div className="flex flex-col gap-0.5 min-w-[120px]">
                   <div className="flex items-center justify-between text-[10px]">
                     <span className={cn('font-semibold', rank.color)}>{rank.name}</span>
@@ -518,7 +519,7 @@ export default function Studio() {
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        <aside className="w-[220px] border-r border-zinc-800 flex flex-col shrink-0">
+        <aside className={cn("w-[220px] border-r border-zinc-800 flex-col shrink-0", mobileTab === "files" ? "flex absolute inset-0 z-20 bg-zinc-950 w-full md:static md:flex" : "hidden md:flex")}>
           <div className="p-3 border-b border-zinc-800">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Archivos</span>
@@ -579,7 +580,7 @@ export default function Studio() {
           </div>
         </aside>
 
-        <main className="flex-1 flex flex-col min-w-0">
+        <main className={cn("flex-1 flex-col min-w-0", mobileTab === "editor" ? "flex" : "hidden md:flex")}>
           <div className="h-9 border-b border-zinc-800 flex items-center justify-between px-3">
             <span className="text-xs text-zinc-500">{activeFile?.name}</span>
             <button onClick={runCode} className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-100 hover:bg-white text-zinc-900 text-[11px] font-medium">
@@ -619,7 +620,7 @@ export default function Studio() {
           </div>
         </main>
 
-        <section className="w-[400px] border-l border-zinc-800 flex flex-col">
+        <section className={cn("w-full md:w-[400px] border-l border-zinc-800 flex-col", mobileTab === "chat" ? "flex absolute inset-0 z-20 bg-zinc-950 md:static" : "hidden md:flex")}>
           <div className="h-9 border-b border-zinc-800 flex items-center justify-between px-3">
             <div className="flex items-center gap-2 text-xs font-medium">
               <Sparkles size={13} />
@@ -760,6 +761,32 @@ export default function Studio() {
         </section>
       </div>
 
+
+
+      {/* Mobile bottom nav */}
+      <nav className="md:hidden h-14 border-t border-zinc-800 flex items-center justify-around bg-zinc-950 shrink-0 pb-safe">
+        <button
+          onClick={() => setMobileTab('files')}
+          className={cn('flex flex-col items-center gap-0.5 px-4 py-1 text-[10px]', mobileTab === 'files' ? 'text-white' : 'text-zinc-500')}
+        >
+          <FolderOpen size={18} />
+          Archivos
+        </button>
+        <button
+          onClick={() => setMobileTab('editor')}
+          className={cn('flex flex-col items-center gap-0.5 px-4 py-1 text-[10px]', mobileTab === 'editor' ? 'text-white' : 'text-zinc-500')}
+        >
+          <FileCode size={18} />
+          Código
+        </button>
+        <button
+          onClick={() => setMobileTab('chat')}
+          className={cn('flex flex-col items-center gap-0.5 px-4 py-1 text-[10px]', mobileTab === 'chat' ? 'text-white' : 'text-zinc-500')}
+        >
+          <MessageSquare size={18} />
+          CodeFox
+        </button>
+      </nav>
 
       {htmlPreview && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col">
